@@ -1,0 +1,32 @@
+﻿<nav class="navbar navbar-expand-md navbar-dark bg-dark px-3">
+    <a class="navbar-brand" href="#">
+        <img src="./images/put_rocketlab_logo_57x57.webp" width="30" height="30" class="d-inline-block align-top" alt="">
+        PUT Rocketlab Hub
+    </a>
+
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav">
+            @foreach (var pageLink in _pages)
+            {
+                <li class="nav-item">
+                    <a class="nav-link" href="@pageLink.Value">
+                        @pageLink.Key
+                    </a>
+                </li>
+            }
+        </ul>
+    </div>
+</nav>
+
+@code
+{
+    private static Dictionary<string, string> _pages = new()
+        {
+            ["Strona Główna"] = "./",
+            ["Kalibracja Magnetometru"] = "./magnetometer-calibration"
+        };
+}

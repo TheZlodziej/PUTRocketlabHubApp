@@ -1,0 +1,47 @@
+﻿<Button Disabled="@Disabled" Color="@Color" Clicked="@ShowModal">
+    @ChildContent
+</Button>
+<Modal @ref="@_modalRef">
+    <ModalContent Centered="true">
+        <ModalHeader>
+            <ModalTitle>@ConfirmMessageTitle</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+
+        <ModalBody>
+            @ConfirmMessageBody
+        </ModalBody>
+
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@HideModal">Zamknij</Button>
+            <Button Color="Color.Primary" Clicked="@ConfirmButtonClicked">Potwierdź</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public bool Disabled { get; set; } = false;
+    [Parameter] public Color Color { get; set; } = Color.Primary;
+    [Parameter] public string ConfirmMessageTitle { get; set; } = "Czy jesteś pewny?";
+    [Parameter] public string ConfirmMessageBody { get; set; } = "Potwierdź klikając w przycisk...";
+    [Parameter] public EventCallback OnConfirmed { get; set; }
+
+    private Modal? _modalRef;
+
+    private void ConfirmButtonClicked()
+    {
+        HideModal();
+        OnConfirmed.InvokeAsync();
+    }
+
+    private void HideModal()
+    {
+        _modalRef!.Hide();
+    }
+
+    private void ShowModal()
+    {
+        _modalRef!.Show();
+    }
+}

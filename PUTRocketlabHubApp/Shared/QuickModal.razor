@@ -1,0 +1,36 @@
+﻿<Button Disabled="@Disabled" Clicked="@ShowModal" Color="Color.Primary">@ShowButtonText</Button>
+<Modal @ref="_modalRef">
+    <ModalContent Centered="true">
+        <ModalHeader>
+            <ModalTitle>@Title</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+
+        <ModalBody class="d-flex p-2 justify-content-center">
+            @ChildContent
+        </ModalBody>
+
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="@HideModal">Zamknij</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Modal Title";
+    [Parameter] public string ShowButtonText { get; set; } = "Show Modal";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public bool Disabled { get; set; } = false;
+
+    private Modal? _modalRef;
+
+    private void HideModal()
+    {
+        _modalRef!.Hide();
+    }
+
+    private void ShowModal()
+    {
+        _modalRef!.Show();
+    }
+}

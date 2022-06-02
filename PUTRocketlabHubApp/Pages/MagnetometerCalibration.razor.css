@@ -1,0 +1,25 @@
+﻿.rz-line-series { stroke: none !important; }
+.container {
+  display: grid; 
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr; 
+  grid-template-rows: 0.5fr 0.5fr 3fr; 
+  gap: 7px 7px; 
+  align-items: center;
+  grid-template-areas: 
+    "port baud-rate start end status"
+    "new-min new-max help check incoming-data"
+    "chart chart chart chart incoming-data";
+  max-height: 100vh;
+}
+.end { grid-area: end; align-self: end; }
+.port { grid-area: port; }
+.baud-rate { grid-area: baud-rate; }
+.new-min { grid-area: new-min; }
+.new-max { grid-area: new-max; }
+.status { grid-area: status; }
+.incoming-data { grid-area: incoming-data; align-self: start; }
+.help { grid-area: help; align-self: end; }
+.check { grid-area: check; align-self: end; }
+.start { grid-area: start; align-self: end; }
+.chart { grid-area: chart; align-self: start; }
+.mh-500px { max-height: 450px; }

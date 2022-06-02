@@ -1,0 +1,116 @@
+﻿@typeparam TypeOfItem
+
+<Chart @ref="_chart" TItem="TypeOfItem" OptionsObject="@_options" />
+
+@code{
+    [Parameter] [EditorRequired] public List<List<TypeOfItem>> DataSets { get; set; } = new();
+    [Parameter] public List<string> Labels { get; set; } = new();
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private Chart<TypeOfItem>? _chart;
+    private string[] _labels = { "Red", "Green", "Blue", "Yellow", "Purple", "Orange" };
+    private List<string> _backgroundColors = new List<string>
+    {
+        ChartColor.FromRgba(255, 99, 132, 0.2f),
+        ChartColor.FromRgba( 75, 192, 192, 0.2f),
+        ChartColor.FromRgba(54, 162, 235, 0.2f),
+        ChartColor.FromRgba(255, 206, 86, 0.2f),
+        ChartColor.FromRgba(75, 192, 192, 0.2f),
+        ChartColor.FromRgba(153, 102, 255, 0.2f),
+        ChartColor.FromRgba(255, 159, 64, 0.2f) 
+    };
+    private List<string> _borderColors = new List<string>
+    {
+        ChartColor.FromRgba(255, 99, 132, 1f),
+        ChartColor.FromRgba( 75, 192, 192, 1f),
+        ChartColor.FromRgba(54, 162, 235, 1f),
+        ChartColor.FromRgba(255, 206, 86, 1f),
+        ChartColor.FromRgba(75, 192, 192, 1f),
+        ChartColor.FromRgba(153, 102, 255, 1f),
+        ChartColor.FromRgba(255, 159, 64, 1f) 
+    };
+    private object _options = new
+    {
+        Scales = new
+        {
+            XAxes = new[]
+            {
+                new
+                {
+                    Type = "linear",
+                    Position = "bottom"
+                }
+            }
+        }
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (_chart is null)
+            return;
+
+        InvokeAsync(async () =>
+        {
+            for (int i = 0; i < DataSets.Count; i++)
+            {
+                await _chart.SetData(i, DataSets[i]);
+            }
+
+            await _chart.Update();
+        });
+    }
+
+    protected override async Task OnAfterRenderAsync( bool firstRender )
+    {
+        if (_chart is null)
+            return;
+
+        if (!firstRender)
+            return;
+
+        for (int i = 0; i < DataSets.Count; i++)
+        {
+            await _chart.AddDataSet(GetChartDataset(i));
+        }
+    }
+
+    private async Task HandleRedraw<TDataSet, TItem, TOptions, TModel>(BaseChart<TDataSet, TItem, TOptions, TModel> chart, params Func<TDataSet>[] getDataSet)
+        where TDataSet : ChartDataset<TItem>
+        where TOptions : ChartOptions
+        where TModel : ChartModel
+        where TItem : TypeOfItem
+    {
+        await chart.Clear();
+        await chart.AddLabelsDatasetsAndUpdate(_labels, getDataSet.Select(x=>x.Invoke()).ToArray());
+    }
+
+    async Task SetDataAndUpdate<TDataSet, TItem, TOptions, TModel>(BaseChart<TDataSet, TItem, TOptions, TModel> chart, Func<List<TItem>> items )
+        where TDataSet : ChartDataset<TItem>
+        where TOptions : ChartOptions
+        where TModel : ChartModel
+        where TItem : TypeOfItem
+    {
+        if (_chart is null)
+            return;
+
+        for (int i = 0; i < DataSets.Count; i++)
+        {
+            await _chart.SetData(i, DataSets[i]);
+        }
+
+        await chart.Update();
+    }
+
+    private LineChartDataset<TypeOfItem> GetChartDataset(int i)
+    {
+        return new LineChartDataset<TypeOfItem>
+        {
+            Type = "scatter",
+            Label = Labels[i],
+            Data = DataSets[i],
+            BackgroundColor = _backgroundColors[i],
+            BorderColor = _borderColors[i],
+            ShowLine = false
+        };
+    }
+}

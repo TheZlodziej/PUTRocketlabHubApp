@@ -1,0 +1,36 @@
+﻿@using PUTRocketlabHubApp.Shared.Documentation
+
+<h1>Dokumentacja</h1>
+
+<select @onchange="docChanged">
+    @foreach(var doc in m_docsDict)
+    {
+        <option value=@doc.Key>
+            @doc.Key
+        </option>
+    }
+</select>
+
+<h1>@_currentDocKey</h1>
+<DynamicComponent Type="@_currentDoc"/>
+
+@code {
+    private string _currentDocKey = "scaling";
+    private Type _currentDoc = typeof(ScalingDocumentation);
+    private static Dictionary<string, Type> m_docsDict = new()
+    {
+        ["scaling"] = typeof(ScalingDocumentation),
+        ["nav"] = typeof(NavBar)
+    };
+
+    private void docChanged(ChangeEventArgs arg)
+    {
+        string? docKey = arg.Value?.ToString();
+
+        if (string.IsNullOrEmpty(docKey))
+            return;
+
+        _currentDocKey = docKey;
+        _currentDoc = m_docsDict[_currentDocKey];
+    }
+}

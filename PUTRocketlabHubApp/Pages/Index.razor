@@ -1,0 +1,17 @@
+﻿@page "/"
+@using System.Numerics
+@using System.Threading
+@using System.Collections.Concurrent
+
+@{
+    /*tu bedzie dokumentacja*/
+}
+<Docs />
+<ConfirmButton OnConfirmed=@Lol>ha ha</ConfirmButton>
+
+@code {
+    private void Lol()
+    {
+        Console.WriteLine("lol");
+    }
+}

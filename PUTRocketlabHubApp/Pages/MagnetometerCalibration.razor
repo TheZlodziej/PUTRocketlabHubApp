@@ -1,0 +1,306 @@
+﻿@page "/magnetometer-calibration"
+@using System.IO.Ports
+@using Newtonsoft.Json
+@using PUTRocketlabHubAppLib.Connections.Serial
+@using PUTRocketlabHubAppLib.DataStructures
+@using System.Numerics
+@using PUTRocketlabHubAppLib
+
+@using MagCalibration = PUTRocketlabHubAppLib.Calibration.MagnetometerCalibration
+
+<div class="fixed-bottom">
+    <Alert Color="@_alertColor" Visible="@_alertVisible">
+        <AlertMessage>@_alertMessage</AlertMessage>
+        <AlertDescription>@_alertDescription</AlertDescription>
+        <CloseButton />
+    </Alert>
+</div>
+
+<div class="container pt-5 pb-5">
+    <div class="chart">
+        <Tabs SelectedTab="pre-calibration">
+            <Items>
+                <Tab Name="pre-calibration" >Przed kalibracją</Tab>
+                <Tab Disabled="@_portOccupied" Name="post-calibration" >Po kalibracji</Tab>
+            </Items>
+            <Content>
+                <TabPanel Name="pre-calibration">
+                    <ScatterChart TypeOfItem="Point2D" DataSets="@_dataSets" Labels="@_dataSetsLabels"/>
+                </TabPanel>
+                <TabPanel Name="post-calibration">
+                    <ScatterChart TypeOfItem="Point2D" DataSets="@_calibratedDataSets" Labels="@_dataSetsLabels"/>
+                </TabPanel>
+            </Content>
+        </Tabs>
+    </div>
+    <div class="port">
+        <Field>
+            <FieldLabel>Port</FieldLabel>
+            <Select Disabled="@_portOccupied" @bind-SelectedValue="@_magnetometerCalibration.Connection.Port.PortName" TValue="string">
+            @foreach(var port in SerialPort.GetPortNames())
+            {
+                <SelectItem Value="@port">@port</SelectItem>
+            }
+            </Select>
+        </Field>
+    </div>
+    <div class="baud-rate">
+        <Field>
+            <FieldLabel>Szybkość transmisji</FieldLabel>
+            <Select Disabled="@_portOccupied" @bind-SelectedValue="@_magnetometerCalibration.Connection.Port.BaudRate" TValue="int">
+            @foreach(var rate in SerialConnection<int>.BaudRates)
+            {
+                <SelectItem Value="@rate">@rate</SelectItem>
+            }
+            </Select>
+        </Field>
+    </div>
+    <div class="new-min">
+        <Field>
+            <FieldLabel>Nowe minimum</FieldLabel>
+            <NumericEdit Disabled="@_portOccupied" @bind-Value="@_magnetometerCalibration.NewMin" TValue="float"/>
+        </Field>
+    </div>
+    <div class="new-max">
+        <Field>
+            <FieldLabel>Nowe maksimum</FieldLabel>
+            <NumericEdit Disabled="@_portOccupied" @bind-Value="@_magnetometerCalibration.NewMax" TValue="float"/>
+        </Field>
+    </div>
+    <div class="status">
+        <Card>
+            <CardHeader class="d-flex justify-content-between align-items-center">
+                Status <Badge Color="@_statusColor">@_statusText</Badge>
+            </CardHeader>
+        </Card>
+    </div>
+    <div class="incoming-data">
+        <Card>
+            <CardHeader>Dane przychodzące</CardHeader>
+            <CardBody>
+                <div class="overflow-auto mh-500px">
+                    @foreach (var imuData in _imuData)
+                    {
+                        <CardTitle>
+                            <Text TextColor="TextColor.Danger">x:</Text> @imuData.Magnetometer?.X.ToUSString()
+                            <Text TextColor="TextColor.Success">y:</Text>  @imuData.Magnetometer?.Y.ToUSString()
+                            <Text TextColor="TextColor.Info">z:</Text> @imuData.Magnetometer?.Z.ToUSString()
+                        </CardTitle>
+                    }  
+                </div>
+            </CardBody>
+        </Card>
+    </div>
+    <div class="help">
+        <Field>
+            <QuickModal Title="Pomoc przy skalowaniu magnetometru" ShowButtonText="Pomoc">
+                <iframe width="470" height="315" src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </QuickModal>
+        </Field>
+    </div>
+    <div class="check">
+        <Field>
+            <ConfirmButton Disabled="@_portOccupied" OnConfirmed="@StartCalibrationCheckClicked" ConfirmMessageTitle="Potwierdź rozpoczęcie sprawdzenia kalibracji" ConfirmMessageBody="Ta operacja służy TYLKO do sprawdzenia kalibracji i nie zmienia danych kalibracyjnych.">
+                Sprawdź kalibrację
+            </ConfirmButton>
+        </Field>
+    </div>
+    <div class="start">
+        <Field>
+            <ConfirmButton Disabled="@_portOccupied" OnConfirmed="@StartButtonClicked" ConfirmMessageTitle="Potwierdź rozpoczęcie kalibracji" ConfirmMessageBody="Niepoprawne ustawienia kalibracji mogą sprawić, że konieczne będzie zrestartowanie urządzenia lub aplikacji">
+                Rozpocznij kalibrację
+            </ConfirmButton>
+        </Field>
+    </div>
+    <div class="end">
+        <Field>
+            <ConfirmButton Disabled="@_portOccupied" OnConfirmed="@EndButtonClicked" ConfirmMessageTitle="Potwierdź zakończenie kalibracji" ConfirmMessageBody="Zakończenie kalibracji spowoduje wyjście płytki ze stanu kalibracji. Aby móc dalej kalibrować płytkę, konieczne będzie jej zrestartowanie.">
+                Zakończ kalibrację
+            </ConfirmButton>
+        </Field>
+    </div>
+</div>
+
+@code {
+    private List<IMUData> _imuData = new();
+
+    public struct Point2D
+    {
+        public float X { get; set; }
+        public float Y { get; set; }
+    }
+
+    private List<string> _dataSetsLabels = new() { "X-Y", "Y-Z", "Z-X" };
+    private List<List<Point2D>> _calibratedDataSets = new()
+    {
+        new(), // X-Y
+        new(), // Y-Z
+        new()  // Z-X
+    };
+
+    private List<List<Point2D>> _dataSets = new()
+    {
+        new(), // X-Y
+        new(), // Y-Z
+        new()  // Z-X
+    };
+
+    private string _statusText = "Nie rozpoczęto";
+    private Color _statusColor = Color.Secondary;
+
+    private Color _alertColor = Color.Success;
+    private bool _alertVisible = false;
+    private string _alertMessage = "Sukces";
+    private string _alertDescription = "";
+    private int _alertTime = 3000; // ms
+
+    private bool _portOccupied = false;
+    private MagCalibration _magnetometerCalibration = new(new(SerialPort.GetPortNames().LastOrDefault() ?? "COM1", SerialConnection<int>.BaudRates[^3]));
+
+    protected override void OnInitialized()
+    {
+        _magnetometerCalibration.Connection.DataCallback = IMUDataCallback;
+    }
+
+    private async Task StartCalibrationCheckClicked()
+    {
+        ClearData();
+        _statusColor = Color.Warning;
+        _statusText = "Oczekiwanie...";
+        _portOccupied = true;
+
+        try
+        {
+            await _magnetometerCalibration.CheckCalibration();
+            _statusColor = Color.Success;
+            _statusText = "Zakończono";
+
+            Alert(Color.Success, "Sukces", "Otrzymano skalibrowane dane");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            _statusColor = Color.Danger;
+            _statusText = "Error";
+            _magnetometerCalibration.Connection.Port.Close();
+            Alert(Color.Danger, "Error", ex.Message);
+        }
+
+        _portOccupied = false;
+    }
+
+    private async Task EndButtonClicked()
+    {
+        _statusColor = Color.Warning;
+        _statusText = "Kończenie kalibracji...";
+        _portOccupied = true;
+
+        try
+        {
+            await _magnetometerCalibration.EndCalibration();
+            _statusColor = Color.Success;
+            _statusText = "Zakończono";
+
+            Alert(Color.Success, "Sukces", "Kalibracja zakończona.");
+
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            _statusColor = Color.Danger;
+            _statusText = "Error";
+            _magnetometerCalibration.Connection.Port.Close();
+            Alert(Color.Danger, "Error", ex.Message);
+        }
+
+        _portOccupied = false;
+    }
+
+    private async Task StartButtonClicked()
+    {
+        ClearData();
+        _statusColor = Color.Warning;
+        _statusText = "Kalibracja...";
+        _portOccupied = true;
+
+        try
+        {
+            await StartCalibration();
+
+            DrawCalibratedDataChart();
+            _statusColor = Color.Success;
+            _statusText = "Zakończono";
+
+            Alert(Color.Success, "Sukces", "Kalibracja magnetometru zakończona");
+        }
+        catch(Exception ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            _statusColor = Color.Danger;
+            _statusText = "Error";
+            Alert(Color.Danger, "Error", ex.Message);
+        }
+
+        _portOccupied = false;
+    }
+
+    private void ClearData()
+    {
+        _imuData.Clear();
+
+        foreach (var list in _dataSets)
+        {
+            list.Clear();
+        }
+
+        foreach (var list in _calibratedDataSets)
+        {
+            list.Clear();
+        }
+    }
+
+    private void DrawCalibratedDataChart()
+    {
+        foreach (var data in _magnetometerCalibration.CalibratedMagnetometerData)
+        {
+            _calibratedDataSets[0].Add(new Point2D{ X = data.X, Y = data.Y }); // X-Y
+            _calibratedDataSets[1].Add(new Point2D{ X = data.Y, Y = data.Z }); // Y-Z
+            _calibratedDataSets[2].Add(new Point2D{ X = data.Z, Y = data.X }); // Z-X
+        }
+    }
+
+    private void Alert(Color alertColor, string alertMessage, string alertDescription)
+    {
+        _alertColor = alertColor;
+        _alertMessage = alertMessage;
+        _alertDescription = alertDescription;
+        _alertVisible = true;
+
+        InvokeAsync(async () =>
+        {
+            await Task.Delay(_alertTime);
+            _alertVisible = false;
+            StateHasChanged();
+        });
+    }
+
+    private void IMUDataCallback(IMUData data)
+    {
+        _imuData.Add(data);
+
+        if (data.Magnetometer is null)
+            return;
+
+        var magnetometer = (Vector3) data.Magnetometer;
+        _dataSets[0].Add(new Point2D{ X = magnetometer.X, Y = magnetometer.Y }); // X-Y
+        _dataSets[1].Add(new Point2D{ X = magnetometer.Y, Y = magnetometer.Z }); // Y-Z
+        _dataSets[2].Add(new Point2D{ X = magnetometer.Z, Y = magnetometer.X }); // Z-X
+
+        StateHasChanged();
+    }
+
+    private async Task StartCalibration()
+    {
+        await _magnetometerCalibration.Start();
+    }
+}
